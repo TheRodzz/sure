@@ -1,0 +1,61 @@
+services:
+  # Web Service for the Rails application
+  - type: web
+    name: sure-web
+    runtime: ruby
+    buildCommand: "./bin/render-build.sh"
+    startCommand: "bundle exec puma -C config/puma.rb"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sure-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: sure-cache
+          property: connectionString
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: RAILS_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 20.x
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "true"
+
+  # Background Worker for Sidekiq
+  - type: worker
+    name: sure-worker
+    runtime: ruby
+    buildCommand: "./bin/render-build.sh"
+    startCommand: "bundle exec sidekiq"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sure-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: sure-cache
+          property: connectionString
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+
+# Database service
+databases:
+  - name: sure-db
+    plan: free
+
+# Redis service
+redis:
+  - name: sure-cache
+    plan: free
+    ipAllowList: [] # Only allow internal connections
