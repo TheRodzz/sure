@@ -16,34 +16,38 @@ services:
     container_name: app_mirroring
     build:
       context: ..
-      dockerfile: .devcontainer/Dockerfile
+      dockerfile: Dockerfile
     volumes:
-      - ./.bashrc:/root/.bashrc:ro,cached
-      - ..:/workspace:cached
+      - ..:/rails:cached
       - bundle_cache_mirroring:/bundle
     ports:
       - "3001:3000"
-    command: sleep infinity
+    command: bash -c "bundle install && bin/rails db:prepare && bin/rails server -b 0.0.0.0"
     environment:
       <<: *rails_env
     depends_on:
-      - db_mirroring
-      - redis_mirroring
+      db_mirroring:
+        condition: service_healthy
+      redis_mirroring:
+        condition: service_healthy
 
   worker_mirroring:
     container_name: worker_mirroring
     build:
       context: ..
-      dockerfile: .devcontainer/Dockerfile
+      dockerfile: Dockerfile
     volumes:
-      - ..:/workspace:cached
+      - ..:/rails:cached
       - bundle_cache_mirroring:/bundle
-    command: bundle exec sidekiq
+    command: bash -c "bundle install && bundle exec sidekiq"
     restart: unless-stopped
     environment:
       <<: *rails_env
     depends_on:
-      - redis_mirroring
+      db_mirroring:
+        condition: service_healthy
+      redis_mirroring:
+        condition: service_healthy
 
   redis_mirroring:
     container_name: redis_mirroring
@@ -51,6 +55,11 @@ services:
     volumes:
       - redis-data-mirroring:/data
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   db_mirroring:
     container_name: db_mirroring
@@ -62,10 +71,13 @@ services:
     restart: unless-stopped
     environment:
       <<: *db_env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres-data-mirroring:
   redis-data-mirroring:
   bundle_cache_mirroring:
-
-
