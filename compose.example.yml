@@ -19,6 +19,10 @@
 #
 # https://github.com/we-promise/sure/blob/main/docs/hosting/docker.md
 #
+# Optional PostgreSQL backups (local + offsite via Databasus):
+#   docker compose --profile backup up -d
+#   See docs/hosting/databasus.md
+#
 # Troubleshooting:
 # ----------------
 #
@@ -119,24 +123,21 @@ services:
     networks:
       - sure_net
 
-  backup:
+  # PostgreSQL backups (local + offsite). Enable with: docker compose --profile backup up -d
+  # Configure schedules, retention, and storage in the Databasus UI. See docs/hosting/databasus.md
+  databasus:
     profiles:
       - backup
-    image: prodrigestivill/postgres-backup-local
+    image: databasus/databasus:latest
     restart: unless-stopped
+    ports:
+      - "${DATABAUS_BIND:-127.0.0.1:4005}:4005"
     volumes:
-      - /opt/sure-data/backups:/backups # Change this path to your desired backup location on the host machine
-    environment:
-      - POSTGRES_HOST=db
-      - POSTGRES_DB=${POSTGRES_DB:-sure_production}
-      - POSTGRES_USER=${POSTGRES_USER:-sure_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-sure_password} # pipelock:ignore
-      - SCHEDULE=@daily # Runs once a day at midnight
-      - BACKUP_KEEP_DAYS=7 # Keeps the last 7 days of backups
-      - BACKUP_KEEP_WEEKS=4 # Keeps 4 weekly backups
-      - BACKUP_KEEP_MONTHS=6 # Keeps 6 monthly backups
+      - databasus-data:/databasus-data
+      - ${DATABAUS_LOCAL_BACKUP_PATH:-/opt/sure-data/backups}:/backups
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - sure_net
 
@@ -157,6 +158,7 @@ volumes:
   app-storage:
   postgres-data:
   redis-data:
+  databasus-data:
 
 networks:
   sure_net:

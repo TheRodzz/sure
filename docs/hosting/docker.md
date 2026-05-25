@@ -198,6 +198,19 @@ docker compose ls
 
 Your app is now set up. You can visit it at `http://localhost:3000` in your browser.
 
+### Step 8 (recommended): PostgreSQL backups
+
+Production self-hosters should enable automated database backups with local and offsite copies.
+
+```bash
+sudo mkdir -p /opt/sure-data/backups
+docker compose --profile backup up -d
+```
+
+This starts [Databasus](https://databasus.com/) alongside Sure. Open `http://127.0.0.1:4005`, register an admin account, and connect to the `db` service using your `POSTGRES_*` credentials. Add at least one local storage path (`/backups`) and one offsite destination (S3, R2, Google Drive, SFTP, rclone, and others).
+
+Full setup, supported storage and notification providers, restore steps, and ActiveStorage backup notes: **[PostgreSQL backups with Databasus](databasus.md)**.
+
 If you find bugs or have a feature request, be sure to read through our [contributing guide here](https://github.com/we-promise/sure/wiki/How-to-Contribute-Effectively-to-Sure).
 
 ## AI features, external assistant, and Pipelock

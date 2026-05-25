@@ -178,47 +178,41 @@ Now you can:
 
 ## Step 7: Set Up Automated Backups
 
-Create a backup script to protect your data:
+### PostgreSQL (recommended: Databasus)
+
+Sure’s Compose file includes [Databasus](https://databasus.com/) for scheduled PostgreSQL backups with local storage and offsite replication (S3, Cloudflare R2, Google Drive, Azure Blob, SFTP, FTP, NAS, rclone, and more).
 
 ```bash
-# Create backup script
-nano /opt/sure/backup.sh
+sudo mkdir -p /opt/sure-data/backups
+cd /opt/sure
+docker compose --profile backup up -d
 ```
 
-Add this backup script:
+Configure backups in the Databasus UI (`http://127.0.0.1:4005` by default—use SSH port forwarding or a secured reverse proxy). Connect to host `db`, port `5432`, and your `POSTGRES_*` credentials. Add local storage at `/backups` plus at least one remote destination.
+
+See **[PostgreSQL backups with Databasus](databasus.md)** for the full setup guide.
+
+### Application uploads (ActiveStorage)
+
+Databasus does not back up files in the `app-storage` volume. Archive them separately, for example with a daily cron job:
+
+```bash
+nano /opt/sure/backup-storage.sh
+```
 
 ```bash
 #!/bin/bash
-BACKUP_DIR="/opt/sure/backups"
+BACKUP_DIR="/opt/sure-data/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
-
-# Create backup directory
-mkdir -p $BACKUP_DIR
-
-# Backup database
-docker compose exec -T db pg_dump -U sure_user sure_production > $BACKUP_DIR/db_backup_$DATE.sql
-
-# Backup application data
-docker compose exec -T web tar -czf - /rails/storage > $BACKUP_DIR/storage_backup_$DATE.tar.gz
-
-# Keep only last 7 days of backups
-find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
-find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
-
-echo "Backup completed: $DATE"
+mkdir -p "$BACKUP_DIR"
+docker compose exec -T web tar -czf - /rails/storage > "$BACKUP_DIR/storage_backup_$DATE.tar.gz"
+find "$BACKUP_DIR" -name "storage_backup_*.tar.gz" -mtime +7 -delete
 ```
 
 ```bash
-# Make backup script executable
-chmod +x /opt/sure/backup.sh
-
-# Add to crontab for daily backups at 2 AM
+chmod +x /opt/sure/backup-storage.sh
 crontab -e
-```
-
-Add this line to crontab:
-```bash
-0 2 * * * /opt/sure/backup.sh >> /var/log/sure-backup.log 2>&1
+# 0 3 * * * /opt/sure/backup-storage.sh >> /var/log/sure-backup.log 2>&1
 ```
 
 ## Step 8: Set Up Basic Monitoring
@@ -301,13 +295,13 @@ htop
 df -h
 ```
 
-### Restore from backup:
-```bash
-# Restore database
-docker compose exec -T db psql -U sure_user sure_production < /opt/sure/backups/db_backup_YYYYMMDD_HHMMSS.sql
+### Restore from backup
 
-# Restore application data
-docker compose exec -T web tar -xzf /opt/sure/backups/storage_backup_YYYYMMDD_HHMMSS.tar.gz -C /
+- **PostgreSQL:** use the Databasus UI or follow [databasus.md](databasus.md). Legacy `.sql` dumps in `/opt/sure-data/backups` can still be restored with `psql` if needed.
+- **Application storage:**
+
+```bash
+docker compose exec -T web tar -xzf /opt/sure-data/backups/storage_backup_YYYYMMDD_HHMMSS.tar.gz -C /
 ```
 
 ## Security Features
@@ -360,8 +354,8 @@ df -h
 # Clean up Docker images
 docker system prune -a
 
-# Clean up old backups
-find /opt/sure/backups -name "*.sql" -mtime +7 -delete
+# Clean up old local backup files (if not managed by Databasus retention)
+find /opt/sure-data/backups -name "storage_backup_*.tar.gz" -mtime +7 -delete
 ```
 
 **Application is slow:**
@@ -393,17 +387,12 @@ For better performance on Hetzner Cloud:
 
 ## Backup Strategy
 
-Your backup strategy includes:
+1. **PostgreSQL:** Databasus with local path `/opt/sure-data/backups` plus at least one offsite storage (see [databasus.md](databasus.md))
+2. **ActiveStorage:** optional `backup-storage.sh` cron for `/rails/storage`
+3. **Databasus metadata:** back up the `databasus-data` volume and encryption `secret.key` offsite
+4. **Hetzner snapshots:** optional full-VM snapshots for disaster recovery
 
-1. **Daily automated backups** of database and application data
-2. **7-day retention** of backup files
-3. **Separate backup directory** at `/opt/sure/backups`
-4. **Logging** of backup operations
-
-Consider additional backup options:
-- **Off-site backups**: Copy backups to external storage (AWS S3, Google Cloud, etc.)
-- **Database replication**: Set up PostgreSQL streaming replication
-- **Snapshot backups**: Use Hetzner Cloud snapshots for full system backups
+Configure retention and notifications in the Databasus UI rather than ad-hoc `find … -mtime` rules for database dumps.
 
 ## Next Steps
 
