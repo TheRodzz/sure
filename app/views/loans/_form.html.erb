@@ -51,6 +51,8 @@
         <%= loan_form.date_field :start_date,
                                  label: t("loans.form.start_date"),
                                  max: Date.current %>
+        <%= loan_form.date_field :first_payment_date,
+                                 label: t("loans.form.first_payment_date", default: "First Payment Date") %>
       </div>
       <p class="text-xs text-secondary"><%= t("loans.form.start_date_hint") %></p>
 

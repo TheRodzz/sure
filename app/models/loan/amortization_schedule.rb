@@ -28,6 +28,7 @@ class Loan::AmortizationSchedule
         annual_rate: loan.interest_rate,
         term_months: loan.term_months,
         start_date: loan.origination_date,
+        first_payment_date: loan.first_payment_date,
         currency: loan.account.currency,
         rate_resolver: (Loan::RateResolver.for(loan) if loan.variable_rate_type?)
       )
@@ -37,7 +38,7 @@ class Loan::AmortizationSchedule
   # `rate_resolver` is how a variable loan's recorded rate changes reach the
   # simulator. Omitted, the schedule runs at one rate for its whole life, which
   # is what a fixed loan does.
-  def initialize(principal:, annual_rate:, term_months:, start_date:, currency:, rate_resolver: nil)
+  def initialize(principal:, annual_rate:, term_months:, start_date:, first_payment_date: nil, currency:, rate_resolver: nil)
     @currency = currency
     # Rounded to the currency at the door. A balance carrying more fractional
     # units than the currency has -- `first_valuation_amount` is decimal(19,4)
@@ -49,6 +50,7 @@ class Loan::AmortizationSchedule
     @annual_rate = BigDecimal(annual_rate.to_s)
     @term_months = term_months.to_i
     @start_date = start_date
+    @first_payment_date = first_payment_date
     @rate_resolver = rate_resolver
   end
 
@@ -129,7 +131,13 @@ class Loan::AmortizationSchedule
     # the calendar-correct answer at month ends: 31 January plus one month is
     # 28 February, not 3 March.
     def payment_schedule
-      @payment_schedule ||= (1..term_months).map { |number| start_date >> number }
+      @payment_schedule ||= (1..term_months).map do |number|
+        if @first_payment_date
+          @first_payment_date >> (number - 1)
+        else
+          start_date >> number
+        end
+      end
     end
 
     # The simulator refuses an empty schedule rather than inventing a

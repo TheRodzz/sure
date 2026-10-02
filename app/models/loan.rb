@@ -242,7 +242,7 @@ class Loan < ApplicationRecord
   # The columns AmortizationSchedule.for reads from the loan itself. Assigning
   # any of them drops the memoised schedule, as reload does, so a read after the
   # change answers with the new terms rather than the ones it was built from.
-  SCHEDULE_INPUTS = %i[interest_rate term_months rate_type start_date variable_rate_schedule].freeze
+  SCHEDULE_INPUTS = %i[interest_rate term_months rate_type start_date first_payment_date variable_rate_schedule].freeze
 
   SCHEDULE_INPUTS.each do |input|
     define_method(:"#{input}=") do |value|
