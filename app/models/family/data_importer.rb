@@ -1062,10 +1062,19 @@ class Family::DataImporter
       outflow_attrs = { kind: outflow_kind }
       if outflow_kind == "investment_contribution" && transfer.outflow_transaction.category_id.blank?
         outflow_attrs[:category] = destination_account.family.investment_contributions_category
+      elsif outflow_kind != "investment_contribution" && transfer.outflow_transaction.category &&
+            Category.all_investment_contributions_names.include?(transfer.outflow_transaction.category.name)
+        outflow_attrs[:category] = nil
+      end
+
+      inflow_attrs = { kind: "funds_movement" }
+      if transfer.inflow_transaction.category &&
+         Category.all_investment_contributions_names.include?(transfer.inflow_transaction.category.name)
+        inflow_attrs[:category] = nil
       end
 
       transfer.outflow_transaction.update!(outflow_attrs)
-      transfer.inflow_transaction.update!(kind: "funds_movement")
+      transfer.inflow_transaction.update!(inflow_attrs)
     end
 
     def imported_transfer_outflow_kind(transfer)

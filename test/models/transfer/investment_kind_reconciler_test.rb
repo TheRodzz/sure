@@ -6,22 +6,28 @@ class Transfer::InvestmentKindReconcilerTest < ActiveSupport::TestCase
   end
 
   test "repairs a legacy investment-to-investment outflow still marked as a contribution" do
+    category = @family.investment_contributions_category
     transfer = create_transfer(from: accounts(:crypto), to: accounts(:investment), outflow_kind: "investment_contribution")
+    transfer.outflow_transaction.update!(category: category)
 
     result = Transfer::InvestmentKindReconciler.new.run
 
     assert_equal "funds_movement", transfer.outflow_transaction.reload.kind
+    assert_nil transfer.outflow_transaction.category
     assert_equal "funds_movement", transfer.inflow_transaction.reload.kind
     assert_equal({ "investment_contribution->funds_movement" => 1 }, result.changed)
   end
 
   test "repairs a matched brokerage inflow an earlier sync turned back into a contribution" do
+    category = @family.investment_contributions_category
     transfer = create_transfer(from: accounts(:depository), to: accounts(:investment),
                                outflow_kind: "investment_contribution", inflow_kind: "investment_contribution")
+    transfer.inflow_transaction.update!(category: category)
 
     Transfer::InvestmentKindReconciler.new.run
 
     assert_equal "funds_movement", transfer.inflow_transaction.reload.kind
+    assert_nil transfer.inflow_transaction.category
     assert_equal "investment_contribution", transfer.outflow_transaction.reload.kind
   end
 

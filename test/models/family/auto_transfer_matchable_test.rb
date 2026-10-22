@@ -658,6 +658,25 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_equal category, outflow_entry.entryable.category
   end
 
+  test "confirmed auto-match between investment and crypto accounts classifies outflow as funds_movement without category" do
+    investment = accounts(:investment)
+    crypto = accounts(:crypto)
+    category = @family.investment_contributions_category
+
+    outflow_entry = create_transaction(date: Date.current, account: crypto, amount: 500, category: category)
+    inflow_entry = create_transaction(date: Date.current, account: investment, amount: -500, category: category)
+
+    auto_match_and_confirm_transfers!
+
+    outflow_entry.reload
+    inflow_entry.reload
+
+    assert_equal "funds_movement", outflow_entry.entryable.kind
+    assert_equal "funds_movement", inflow_entry.entryable.kind
+    assert_nil outflow_entry.entryable.category
+    assert_nil inflow_entry.entryable.category
+  end
+
   test "does not match multi-currency transfer with missing exchange rate" do
     create_transaction(date: Date.current, account: @depository, amount: 500)
     create_transaction(date: Date.current, account: @credit_card, amount: -700, currency: "GBP")

@@ -198,9 +198,17 @@ class Transfer < ApplicationRecord
       if outflow_kind == "investment_contribution" && outflow_transaction.category_id.blank?
         category = to_account.family.investment_contributions_category
         outflow_attrs[:category] = category if category.present?
+      elsif outflow_kind != "investment_contribution" && outflow_transaction.category &&
+            Category.all_investment_contributions_names.include?(outflow_transaction.category.name)
+        outflow_attrs[:category] = nil
       end
 
-      inflow_transaction.update!(kind: "funds_movement")
+      inflow_attrs = { kind: "funds_movement" }
+      if inflow_transaction.category && Category.all_investment_contributions_names.include?(inflow_transaction.category.name)
+        inflow_attrs[:category] = nil
+      end
+
+      inflow_transaction.update!(inflow_attrs)
       outflow_transaction.update!(outflow_attrs)
     end
   end

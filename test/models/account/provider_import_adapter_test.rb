@@ -160,6 +160,47 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
     assert_equal "funds_movement", checking_entry.transaction.reload.kind
   end
 
+  test "re-importing a matched investment transfer leg with Contribution label does not assign investment contributions category" do
+    investment_adapter = Account::ProviderImportAdapter.new(accounts(:investment))
+    crypto_adapter = Account::ProviderImportAdapter.new(accounts(:crypto))
+
+    inflow_entry = investment_adapter.import_transaction(
+      external_id: "plaid_inv_inflow_contrib",
+      amount: -400.00,
+      currency: "USD",
+      date: Date.current,
+      name: "IRA contribution",
+      source: "plaid"
+    )
+    outflow_entry = crypto_adapter.import_transaction(
+      external_id: "plaid_crypto_outflow_contrib",
+      amount: 400.00,
+      currency: "USD",
+      date: Date.current,
+      name: "Transfer to brokerage",
+      source: "plaid"
+    )
+
+    transfer = Transfer.create!(inflow_transaction: inflow_entry.transaction, outflow_transaction: outflow_entry.transaction)
+    transfer.confirm!
+
+    assert_nil inflow_entry.transaction.reload.category
+    assert_nil outflow_entry.transaction.reload.category
+
+    # Re-syncing the brokerage inflow with a Contribution label keeps funds_movement and no category.
+    investment_adapter.import_transaction(
+      external_id: "plaid_inv_inflow_contrib",
+      amount: -400.00,
+      currency: "USD",
+      date: Date.current,
+      name: "IRA contribution",
+      source: "plaid"
+    )
+
+    assert_equal "funds_movement", inflow_entry.transaction.reload.kind
+    assert_nil inflow_entry.transaction.category
+  end
+
   test "re-importing an unconfirmed auto-matched leg does not give it a transfer kind" do
     loan_entry = Account::ProviderImportAdapter.new(accounts(:loan)).import_transaction(
       external_id: "plaid_loan_inflow_pending", amount: -200.00, currency: "USD",

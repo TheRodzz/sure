@@ -92,4 +92,22 @@ class TransferMatchesControllerTest < ActionDispatch::IntegrationTest
     category = @user.family.investment_contributions_category
     assert_equal category, outflow_txn.category
   end
+
+  test "classifies investment-to-investment transfer match as funds_movement without category" do
+    category = @user.family.investment_contributions_category
+    outflow_entry = create_transaction(amount: 100, account: accounts(:crypto), category: category)
+
+    post transaction_transfer_match_path(outflow_entry), params: {
+      transfer_match: {
+        method: "new",
+        target_account_id: accounts(:investment).id
+      }
+    }
+
+    outflow_entry.reload
+    outflow_txn = outflow_entry.entryable
+
+    assert_equal "funds_movement", outflow_txn.kind
+    assert_nil outflow_txn.category
+  end
 end

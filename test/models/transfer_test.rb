@@ -198,6 +198,33 @@ class TransferTest < ActiveSupport::TestCase
     assert_equal categories(:income), transfer.outflow_transaction.reload.category
   end
 
+  test "confirm! classifies investment-to-investment transfers as funds_movement without investment contributions category" do
+    category = families(:dylan_family).investment_contributions_category
+    transfer = create_pending_transfer(from: accounts(:crypto), to: accounts(:investment))
+    transfer.outflow_transaction.update!(category: category)
+    transfer.inflow_transaction.update!(category: category)
+
+    transfer.confirm!
+
+    outflow = transfer.outflow_transaction.reload
+    inflow = transfer.inflow_transaction.reload
+    assert_equal "funds_movement", outflow.kind
+    assert_equal "funds_movement", inflow.kind
+    assert_nil outflow.category
+    assert_nil inflow.category
+  end
+
+  test "confirm! keeps a custom category on an investment-to-investment transfer outflow" do
+    transfer = create_pending_transfer(from: accounts(:crypto), to: accounts(:investment))
+    transfer.outflow_transaction.update!(category: categories(:food_and_drink))
+
+    transfer.confirm!
+
+    outflow = transfer.outflow_transaction.reload
+    assert_equal "funds_movement", outflow.kind
+    assert_equal categories(:food_and_drink), outflow.category
+  end
+
   test "reject! leaves the kind of a pending transfer's transactions alone" do
     transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
     transfer.outflow_transaction.update!(kind: "one_time")

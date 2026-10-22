@@ -55,7 +55,10 @@ class Transfer::InvestmentKindReconciler
       scope
         .joins(inflow_transaction: { entry: :account })
         .where(accounts: { accountable_type: INVESTMENT_TYPES })
-        .includes(inflow_transaction: { entry: :account }, outflow_transaction: { entry: :account })
+        .includes(
+          inflow_transaction: [ :category, { entry: :account } ],
+          outflow_transaction: [ :category, { entry: :account } ]
+        )
     end
 
     def repairable?(transaction)
@@ -66,8 +69,14 @@ class Transfer::InvestmentKindReconciler
 
     def repair!(transaction, kind)
       now = Time.current
+      attrs = { kind: kind, updated_at: now }
+      if kind != "investment_contribution" && transaction.category &&
+         Category.all_investment_contributions_names.include?(transaction.category.name)
+        attrs[:category_id] = nil
+      end
+
       Transaction.transaction do
-        transaction.update_columns(kind: kind, updated_at: now)
+        transaction.update_columns(attrs)
         # Report and transaction-list caches are keyed on entries' updated_at.
         transaction.entry.update_columns(updated_at: now)
       end

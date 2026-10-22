@@ -1656,6 +1656,23 @@ class Family::DataImporterTest < ActiveSupport::TestCase
     assert_equal false, outflow.transfer_as_outflow.investment_contribution_choice
   end
 
+  test "recomputes an imported investment-to-investment transfer as funds_movement and clears legacy investment contributions category" do
+    ndjson = build_ndjson([
+      { type: "Category", data: { id: "inv-cat", name: Category.investment_contributions_name, color: "#0d9488", lucide_icon: "trending-up" } },
+      { type: "Account", data: { id: "crypto", name: "Crypto", balance: "1000", currency: "USD", accountable_type: "Crypto" } },
+      { type: "Account", data: { id: "brokerage", name: "Brokerage", balance: "2500", currency: "USD", accountable_type: "Investment" } },
+      { type: "Transaction", data: { id: "inv-outflow", account_id: "crypto", date: "2024-01-15", amount: "100.00", name: "To brokerage", currency: "USD", kind: "investment_contribution", category_id: "inv-cat" } },
+      { type: "Transaction", data: { id: "inv-inflow", account_id: "brokerage", date: "2024-01-15", amount: "-100.00", name: "From crypto", currency: "USD", kind: "funds_movement" } },
+      { type: "Transfer", data: { id: "transfer-inv", inflow_transaction_id: "inv-inflow", outflow_transaction_id: "inv-outflow", status: "confirmed" } }
+    ])
+
+    Family::DataImporter.new(@family, ndjson).import!
+
+    outflow = Transaction.joins(:entry).find_by!(entries: { name: "To brokerage" })
+    assert_equal "funds_movement", outflow.kind
+    assert_nil outflow.category
+  end
+
   test "imports a pending transfer without applying transfer kinds" do
     ndjson = build_ndjson([
       { type: "Account", data: { id: "checking", name: "Checking", balance: "1000", currency: "USD", accountable_type: "Depository" } },
